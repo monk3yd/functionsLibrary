@@ -1,3 +1,5 @@
+# Useful transform PDF functions
+
 import base64
 import pdfplumber
 
@@ -5,9 +7,10 @@ from pathlib import Path
 from pdf2image import convert_from_path
 
 
-def pdf_to_str(pdf: Path) -> str:
+def transform_pdf_to_b64str(pdf: Path) -> str:
     """
-    Input PDF's Path -> Returns encoded PDF string
+    Input: PDF file path
+    Output: base64 encoded PDF string
     """
     with open(pdf, "rb") as pdf_file:
         byte_encoded_string = base64.b64encode(pdf_file.read())
@@ -15,9 +18,10 @@ def pdf_to_str(pdf: Path) -> str:
         return pdf_string
 
 
-def pdf_str_to_file(pdf_string: str, pdf_path=Path("/tmp/input.pdf")) -> Path:
+def transform_b64str_to_pdf(pdf_string: str, pdf_path=Path("/tmp/input.pdf")) -> Path:
     """
-    Reconstruct PDF's string & save it into file. Returns Path
+    Input: PDF base64 encoded string
+    Output: Path to saved PDF file
     """
     byte_decoded_string = base64.b64decode(pdf_string)
     with open(pdf_path, "wb") as pdf:
@@ -25,9 +29,10 @@ def pdf_str_to_file(pdf_string: str, pdf_path=Path("/tmp/input.pdf")) -> Path:
     return pdf_path
 
 
-def pdf_to_image(path: Path) -> list:
+def transform_pdf_to_images(path: Path) -> list:
     """
-    Input PDF's Path -> Returns jpeg image
+    Input: PDF's Path
+    Output: list of JPEG images (1 pdf page per image)
     """
     # Store all pages of pdf in variable
     image_file_list = []
@@ -48,7 +53,8 @@ def pdf_to_image(path: Path) -> list:
 
 def extract_pdf_text(path: Path) -> str:
     """
-    Extracts text from original PDF
+    Input: PDF Path
+    Output: Text embedded in 'original' PDF
     """
     with pdfplumber.open(path) as pdf:
         first_page = pdf.pages[0]

@@ -1,0 +1,67 @@
+# --- Global variable with workdir path
+# ARG FUNCTION_DIR="/home/app"
+
+# --- Download Arch ECR Image
+FROM public.ecr.aws/docker/library/archlinux:latest
+# FROM public.ecr.aws/docker/library/archlinux:latest as build-image
+
+# --- Upgrade Arch repos
+RUN pacman -Syu --noconfirm
+# --- Update Arch repos
+RUN pacman -Syy --noconfirm
+
+# --- Build dependencies
+# Core
+RUN pacman -S --noconfirm base-devel cmake git unzip wget 
+# App
+RUN pacman -S --noconfirm glu poppler python python-pip tesseract tesseract-data-eng zbar
+# Webkit drivers
+RUN pacman -S --noconfirm libxkbcommon libepoxy libsoup gstreamer opus icu harfbuzz-icu 
+
+# RUN python --version
+
+# Create working directories
+RUN mkdir -p /home/app
+
+# --- Copy source code (handler function & modules)
+COPY app.py /home/app
+COPY utils.py /home/app 
+
+# --- Install handler & modules dependencies
+# Playwright dependencies
+RUN pip3 install playwright==1.22.0
+RUN python -m playwright install
+
+# Image dependencies
+RUN pip3 install Pillow --upgrade --target /home/app
+# RUN pip3 install pytesseract==0.3.9 --upgrade --target /home/app 
+RUN pip3 install pytesseract==0.3.9 --upgrade --target /home/app 
+RUN pip3 install opencv-python==4.6.0.66 --upgrade --target /home/app 
+RUN pip3 install pyzbar==0.1.9 --upgrade --target /home/app 
+
+# PDF
+RUN pip3 install pdfplumber==0.7.3 --upgrade --target /home/app 
+RUN pip3 install pdf2image==1.16.0 --upgrade --target /home/app 
+# RUN pip3 install poppler-utils --upgrade --target ${FUNCTION_DIR}
+
+# Install Lambda Runtime Interface Client for Python
+RUN python3 -m pip install awslambdaric --target /home/app 
+
+# Stage 3 - final runtime image
+# FROM public.ecr.aws/docker/library/archlinux:latest
+
+# Include global arg in this stage of the build
+# ARG FUNCTION_DIR
+
+WORKDIR /home/app 
+
+# Copy in the built dependencies
+# COPY --from=build-image ${FUNCTION_DIR} ${FUNCTION_DIR}
+
+# (Optional) Add Lambda Runtime Interface Emulator and use a script in the ENTRYPOINT for simpler local runs
+ADD https://github.com/aws/aws-lambda-runtime-interface-emulator/releases/latest/download/aws-lambda-rie /usr/bin/aws-lambda-rie
+COPY entry.sh /
+RUN chmod 755 /usr/bin/aws-lambda-rie /entry.sh
+ENTRYPOINT [ "/entry.sh" ]
+
+CMD [ "app.lambda_handler" ]

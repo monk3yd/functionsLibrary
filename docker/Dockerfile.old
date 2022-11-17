@@ -1,0 +1,103 @@
+# Define global args
+ARG FUNCTION_DIR="/home/app/"
+
+# Stage 1 - bundle base image + runtime
+# Grab a fresh copy of the image
+FROM mcr.microsoft.com/playwright/python:v1.22.0-focal as build-image
+
+# Install base utilities
+RUN apt-get update && \
+    apt-get install -y build-essential  && \
+    apt-get install -y wget && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Stage 2 - build function and dependencies
+# Install aws-lambda-cpp build dependencies
+RUN apt-get update && \
+  apt-get install -y \
+  g++ \
+  make \
+  cmake \
+  unzip \
+  libcurl4-openssl-dev
+  # poppler-utils
+
+# Install Chromium dependencies
+# RUN apt-get update && apt-get install -y --no-install-recommends \
+#     libnss3 \
+#     libxss1 \
+#     libasound2 \
+#     fonts-noto-color-emoji \
+#     libxtst6 \
+#     git \
+#     ssh
+
+# Install miniconda
+ENV CONDA_DIR /root/miniconda3
+RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh && \
+     /bin/bash ~/miniconda.sh -b -p /root/miniconda3 
+
+# Put conda in path so we can use conda activate
+ENV PATH=$CONDA_DIR/bin:$PATH
+
+RUN $CONDA_DIR init
+
+# Conda dependencies
+RUN conda install -c conda-forge poppler
+
+# Include global arg in this stage of the build
+ARG FUNCTION_DIR
+
+# Create function directory
+RUN mkdir -p ${FUNCTION_DIR}
+
+# Copy handler function
+COPY app.py ${FUNCTION_DIR}
+
+# Copy handler function dependencies
+# COPY requirements.txt ${FUNCTION_DIR}
+COPY utils.py ${FUNCTION_DIR}
+
+# Optional – Install the function's dependencies
+# RUN python3 -m pip install -r requirements.txt --target ${FUNCTION_DIR}
+
+# Image dependencies
+RUN pip3 install Pillow --upgrade --target ${FUNCTION_DIR}
+RUN pip3 install pytesseract==0.3.9 --upgrade --target ${FUNCTION_DIR}
+RUN pip3 install pyzbar==0.1.9 --upgrade --target ${FUNCTION_DIR}
+RUN pip3 install opencv-python==4.6.0.66 --upgrade --target ${FUNCTION_DIR}
+
+# PDF
+RUN pip3 install pdfplumber==0.7.3 --upgrade --target ${FUNCTION_DIR}
+RUN pip3 install pdf2image==1.16.0 --upgrade --target ${FUNCTION_DIR}
+# RUN pip3 install poppler-utils --upgrade --target ${FUNCTION_DIR}
+
+# Playwright dependencies
+RUN pip3 install playwright==1.22.0 --upgrade --target ${FUNCTION_DIR}
+RUN python -m playwright install
+
+# Install Lambda Runtime Interface Client for Python
+RUN python3 -m pip install awslambdaric --target ${FUNCTION_DIR}
+
+# Stage 3 - final runtime image
+FROM mcr.microsoft.com/playwright/python:v1.22.0-focal
+
+# Include global arg in this stage of the build
+ARG FUNCTION_DIR
+# ARG RUNTIME_VERSION
+
+# Set working directory to function root directory
+WORKDIR ${FUNCTION_DIR}
+
+# Copy in the built dependencies
+COPY --from=build-image ${FUNCTION_DIR} ${FUNCTION_DIR}
+
+
+# (Optional) Add Lambda Runtime Interface Emulator and use a script in the ENTRYPOINT for simpler local runs
+ADD https://github.com/aws/aws-lambda-runtime-interface-emulator/releases/latest/download/aws-lambda-rie /usr/bin/aws-lambda-rie
+COPY entry.sh /
+RUN chmod 755 /usr/bin/aws-lambda-rie /entry.sh
+ENTRYPOINT [ "/entry.sh" ]
+
+CMD [ "app.lambda_handler" ]

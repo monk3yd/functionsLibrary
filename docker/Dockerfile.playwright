@@ -1,0 +1,89 @@
+ARG FUNCTION_DIR="/home/app/"
+
+FROM mcr.microsoft.com/playwright/python:v1.25.0-focal as build-image
+
+# Core AWS Lambda dependencies
+RUN apt-get update && apt-get install -y \
+    g++ \
+    make \
+    cmake \
+    unzip \
+    libcurl4-openssl-dev \
+    autoconf \
+    libtool
+    # build-essential \
+
+# Install Chromium dependencies
+# RUN apt-get update && apt-get install -y --no-install-recommends \
+#     libnss3 \
+#     libxss1 \
+#     libasound2 \
+#     fonts-noto-color-emoji \
+#     libxtst6 \
+#     git \
+#     ssh
+
+# Core Personal dependencies
+RUN apt-get update && apt-get install -y \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    zbar-tools \
+    poppler-utils \
+    tesseract-ocr \
+    libtesseract-dev
+
+# Include global arg in this stage of build
+ARG FUNCTION_DIR
+
+# Create function directory
+RUN mkdir -p ${FUNCTION_DIR}
+
+WORKDIR ${FUNCTION_DIR} 
+
+# COPY requirements.txt ${FUNCTION_DIR}
+# RUN python3 -m pip install -r requirements.txt --target ${FUNCTION_DIR}
+
+# Image dependencies
+RUN pip3 install Pillow==9.2.0 --upgrade --target ${FUNCTION_DIR} 
+RUN pip3 install pytesseract==0.3.9 --upgrade --target ${FUNCTION_DIR} 
+RUN pip3 install opencv-python==4.6.0.66 --upgrade --target ${FUNCTION_DIR} 
+RUN pip3 install pyzbar==0.1.9 --upgrade --target ${FUNCTION_DIR} 
+
+# PDF
+RUN pip3 install pdfplumber==0.7.3 --upgrade --target ${FUNCTION_DIR} 
+RUN pip3 install pdf2image==1.16.0 --upgrade --target ${FUNCTION_DIR} 
+
+# Requests
+RUN pip3 install requests --upgrade --target ${FUNCTION_DIR}
+# RUN pip3 install wget --upgrade --target ${FUNCTION_DIR}
+
+# --- Install handler & modules dependencies
+# Playwright dependencies
+# RUN pip3 install playwright==1.25.0
+# RUN python3 -m playwright install
+# RUN python3 -m playwright install-deps
+
+COPY app.py ${FUNCTION_DIR} 
+COPY pdf_utils.py ${FUNCTION_DIR} 
+COPY utils.py ${FUNCTION_DIR} 
+COPY regex_patterns.py ${FUNCTION_DIR} 
+
+# Stage 3 - final runtime image
+# FROM mcr.microsoft.com/playwright/python:v1.22.0-focal
+
+# Include global arg in this stage of the build
+# ARG FUNCTION_DIR
+
+# Copy in the built dependencies
+# COPY --from=build-image ${FUNCTION_DIR} ${FUNCTION_DIR}
+
+# Install Lambda Runtime Interface Client for Python
+RUN python3 -m pip install awslambdaric 
+
+# (Optional) Add Lambda Runtime Interface Emulator and use a script in the ENTRYPOINT for simpler local runs
+ADD https://github.com/aws/aws-lambda-runtime-interface-emulator/releases/latest/download/aws-lambda-rie /usr/bin/aws-lambda-rie
+COPY entry.sh /
+RUN chmod 755 /usr/bin/aws-lambda-rie /entry.sh
+ENTRYPOINT [ "/entry.sh" ]
+
+CMD [ "app.lambda_handler" ]
