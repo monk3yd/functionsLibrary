@@ -28,11 +28,18 @@ DOWNLOAD_HANDLERS = {
     "https": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
 }
 
-#### Middlewares ####
+# Enable or disable downloader middlewares
+# See https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
 DOWNLOADER_MIDDLEWARES = {
     # "bookies_odds.middlewares.ProxyMiddleware.ProxyMiddleware": 543,
-    'rotating_proxies.middlewares.RotatingProxyMiddleware': 610,
-    'rotating_proxies.middlewares.BanDetectionMiddleware': 620,
+
+    ## Rotating User Agents
+    # 'scrapy.downloadermiddlewares.useragent.UserAgentMiddleware': None,
+    # 'scrapy_user_agents.middlewares.RandomUserAgentMiddleware': 400,
+
+    ## Rotating Free Proxies
+    # 'scrapy_proxy_pool.middlewares.ProxyPoolMiddleware': 610,
+    # 'scrapy_proxy_pool.middlewares.BanDetectionMiddleware': 620,
 }
 
 #### Proxies ####
@@ -57,6 +64,14 @@ PLAYWRIGHT_CONTEXTS = {
     },
 }
 
+# Configure item pipelines
+# See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
+# The integer values determine the order in which the item is run through the
+# pipelines. It is customary to define these number in the 0-1000 range.
+ITEM_PIPELINES = {
+   'chocolatescraper.pipelines.PriceToUSDPipeline': 100,
+   'chocolatescraper.pipelines.DuplicatesPipeline': 200,
+}
 
 #### Requests delay & concurrencies ####
 # Configure a delay for requests for the same website (default: 0)
@@ -119,11 +134,6 @@ TWISTED_REACTOR = "twisted.internet.asyncioreactor.AsyncioSelectorReactor"
 #    'bookies_odds.middlewares.BookiesOddsSpiderMiddleware': 543,
 # }
 
-# Configure item pipelines
-# See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
-# ITEM_PIPELINES = {
-#    'bookies_odds.pipelines.BookiesOddsPipeline': 300,
-# }
 
 # Whether or not to fail on broken responses. Up to the user to decide if it
 # makes sense to process broken responses considering they may contain partial or incomplete content.
